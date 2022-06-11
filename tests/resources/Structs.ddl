@@ -1,5 +1,7 @@
 
 Struc1 (boolProp) {
+    SubStruct1 {
+    }
 }
 
 StrucWithProps (prop1 = 12, prop2

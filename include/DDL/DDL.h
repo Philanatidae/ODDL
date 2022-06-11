@@ -426,6 +426,52 @@ struct DDL* DDL_create() {
     return root;
 }
 
+void DDL_freeProp(struct DDLProp* prop) {
+    if(prop == DDL_NULL) {
+        return;
+    }
+
+    if(prop->identifier != DDL_NULL) {
+        free(prop->identifier);
+    }
+    if(prop->value != DDL_NULL) {
+        free(prop->value);
+    }
+    DDL_freeProp(prop->next);
+    free(prop);
+}
+void DDL_freeData(struct DDLData* data) {
+    if(data == DDL_NULL) {
+        return;
+    }
+
+    if(data->identifier != DDL_NULL) {
+        free(data->identifier);
+    }
+    if(data->data != DDL_NULL) {
+        free(data->data);
+    }
+    DDL_freeData(data->next);
+    free(data);
+}
+void DDL_free(struct DDL* ddl) {
+    if(ddl == DDL_NULL) {
+        return;
+    }
+
+    if(ddl->identifier != DDL_NULL) {
+        free(ddl->identifier);
+    }
+    if(ddl->name != DDL_NULL) {
+        free(ddl->name);
+    }
+    DDL_freeProp(ddl->propStart);
+    DDL_freeData(ddl->dataStart);
+    DDL_free(ddl->subStart);
+    DDL_free(ddl->next);
+    free(ddl);
+}
+
 DDL_BOOL_T DDL_isIdentifierDataType(char const* identifier, int len) {
     if(len < 0) {
         len = strlen(identifier);
@@ -691,7 +737,7 @@ DDL_BOOL_T DDL_parseToken(char const* ddlMem, int ddlLen,
 }
 #define DDL_EOF_CHECK() DDL_EOF_CHECK_WITH_CLEANUP(do{}while(0))
 
-int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
+int DDL_parseDecimalLiteral(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     uint64_t* outVal) {
@@ -740,7 +786,157 @@ int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
 
     return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
 }
+int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    DDL_EOF_CHECK();
+    int const start = cursor;
+    int sign = ddlMem[cursor] == '-' ? -1 : 1;
+    if(ddlMem[cursor] == '-'
+        || ddlMem[cursor] == '+') {
+        cursor++;
+    } 
 
+    uint64_t num;
+
+    // @todo Hex
+    // @todo Octal
+    // @todo Binary
+    // @todo Char
+
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseDecimalLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    num *= sign;
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }    
+
+    return cursor;
+}
+
+int DDL_parseInnerProps(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    struct DDLProp** outPropStart,
+    int* outPropCount) {
+    struct DDLProp* propStart = DDL_NULL;
+    struct DDLProp** propNext = DDL_NULL;
+    int propCount = 0;
+
+    int const start = cursor;
+    while(1) {
+        DDL_EOF_CHECK();
+
+        if(ddlMem[cursor] == ')') {
+            break;
+        }
+
+        // If we are on a ',', we need to skip to the identifier
+        if(ddlMem[cursor] == ',') {
+            DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, ','), DDL_freeProp(propStart));
+        }
+
+        // Identifier
+        char const* identifier;
+        int identifierLen;
+        DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseIdentifier(ddlMem, ddlLen, cursor, parserState, &identifier, &identifierLen), DDL_freeProp(propStart));
+
+        struct DDLProp* prop = (struct DDLProp*)malloc(sizeof(struct DDLProp));
+        if(prop == DDL_NULL) {
+            DDL_reportError(DDLErrorOutOfMemory);
+            DDL_freeProp(propStart);
+            return -1;
+        }
+        *prop = DDL_createProp();
+        if(propStart == DDL_NULL) {
+            propStart = prop;
+            propNext = &prop->next;
+        } else {
+            *propNext = prop;
+            propNext = &prop->next;
+        }
+        propCount++;
+        prop->identifier = (char*)malloc((identifierLen + 1) * sizeof(char));
+        if(prop->identifier == DDL_NULL) {
+            DDL_reportError(DDLErrorOutOfMemory);
+            DDL_freeProp(propStart);
+            return -1;
+        }
+        strncpy(prop->identifier, identifier, identifierLen);
+        prop->identifier[identifierLen] = '\0';
+
+        // Value
+        DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE), DDL_freeProp(propStart));
+        DDL_EOF_CHECK_WITH_CLEANUP(DDL_freeProp(propStart));
+        if(ddlMem[cursor] == ',' || ddlMem[cursor] == ')') {
+            // Boolean true
+            prop->value = strdup("1");
+            prop->storageType = DDLPropStorageTypeRawString;
+            if(prop->value == DDL_NULL) {
+                DDL_reportError(DDLErrorOutOfMemory);
+                DDL_freeProp(propStart);
+                return -1;
+            }
+            continue;
+        }
+
+        // Expecting a '='
+        DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '='), DDL_freeProp(propStart));
+
+        // Grab raw string value
+        DDL_BOOL_T inString = DDL_FALSE;
+        DDL_BOOL_T escaping = DDL_FALSE;
+        int const rawStrStart = cursor;
+        while(1) {
+            if(cursor < ddlLen && ddlMem[cursor] == '\0') {
+                DDL_reportError(DDLErrorUnexpectedEndOfFile);
+                DDL_freeProp(propStart);
+                return -1;
+            }
+            char const c = ddlMem[cursor];
+
+            if(c == ',' || c == ')') {
+                break;
+            }
+
+            if(c == '"') {
+                if(!escaping) {
+                    inString = !inString;
+                }
+            }
+            if(escaping) {
+                escaping = DDL_FALSE;
+            }
+            if(inString) {
+                if(!escaping && c == '\\') {
+                    escaping = DDL_TRUE;
+                }
+            }
+
+            cursor++;
+        }
+        int const rawStrLen = cursor - rawStrStart;
+        prop->size = rawStrLen;
+        prop->value = (char*)malloc((rawStrLen + 1) * sizeof(char));
+        if(prop->value == DDL_NULL) {
+            DDL_reportError(DDLErrorOutOfMemory);
+            DDL_freeProp(propStart);
+            return -1;
+        }
+        strncpy(prop->value, &ddlMem[rawStrStart], rawStrLen);
+        ((char*)(prop->value))[rawStrLen] = '\0';
+    }
+
+    if(outPropStart != DDL_NULL) {
+        *outPropStart = propStart;
+    }
+    if(outPropCount != DDL_NULL) {
+        *outPropCount = propCount;
+    }
+
+    return cursor;
+}
 int DDL_parseStructure(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
@@ -814,9 +1010,24 @@ int DDL_parseStructure(char const* ddlMem, int ddlLen,
             expectingSubarrayN = expectingDataStates = expectingName = DDL_FALSE;
             break;
         case '{':
-            // @todo
-            while(ddlMem[++cursor] != '}') {
+            DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '{'), DDL_free(struc));
+
+            if(struc->type == DDLStructTypeDerived) {
+                struct DDL** subNext = &struc->subStart;
+                while(cursor < ddlLen
+                    && ddlMem[cursor] != '\0'
+                    && ddlMem[cursor] != '}') {
+                    struct DDL* subStruc = DDL_NULL;
+                    DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseStructure(ddlMem, ddlLen, cursor, parserState, &subStruc), DDL_free(struc));
+                    *subNext = subStruc;
+                    subNext = &subStruc->next;
+                    struc->subCount++;
+                }
+            } else {
+                // @todo
+                while(ddlMem[++cursor] != '}') {}
             }
+
             DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '}'), DDL_free(struc));
             goto ddl_break;
         case '[':
@@ -859,10 +1070,10 @@ int DDL_parseStructure(char const* ddlMem, int ddlLen,
                 return -1;
             }
 
-            // @todo
-            while(ddlMem[++cursor] != ')') {
-            }
+            DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '('), DDL_free(struc));
+            DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseInnerProps(ddlMem, ddlLen, cursor, parserState, &struc->propStart, &struc->propCount), DDL_free(struc));
             DDL_PARSE_ERROR_CHECK_WITH_CLEANUP(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, ')'), DDL_free(struc));
+
             expectingProperties = DDL_FALSE;
             break;
 
@@ -909,52 +1120,6 @@ struct DDL* DDL_parseFromString(char const* ddlStr) {
     }
 
     return root;
-}
-
-void DDL_freeProp(struct DDLProp* prop) {
-    if(prop == DDL_NULL) {
-        return;
-    }
-
-    if(prop->identifier != DDL_NULL) {
-        free(prop->identifier);
-    }
-    if(prop->value != DDL_NULL) {
-        free(prop->value);
-    }
-    DDL_freeProp(prop->next);
-    free(prop);
-}
-void DDL_freeData(struct DDLData* data) {
-    if(data == DDL_NULL) {
-        return;
-    }
-
-    if(data->identifier != DDL_NULL) {
-        free(data->identifier);
-    }
-    if(data->data != DDL_NULL) {
-        free(data->data);
-    }
-    DDL_freeData(data->next);
-    free(data);
-}
-void DDL_free(struct DDL* ddl) {
-    if(ddl == DDL_NULL) {
-        return;
-    }
-
-    if(ddl->identifier != DDL_NULL) {
-        free(ddl->identifier);
-    }
-    if(ddl->name != DDL_NULL) {
-        free(ddl->name);
-    }
-    DDL_freeProp(ddl->propStart);
-    DDL_freeData(ddl->dataStart);
-    DDL_free(ddl->subStart);
-    DDL_free(ddl->next);
-    free(ddl);
 }
 
 char const* DDL_getPropIdentifier(struct DDLProp* prop) {
