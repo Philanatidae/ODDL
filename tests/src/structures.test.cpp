@@ -22,5 +22,10 @@ TEST_CASE("Test case", "[tests]") {
 
     struct DDL* ddl = DDL_parseFromString(ddlBuf);
     REQUIRE(ddl != DDL_NULL);
+    struct DDL* struc1 = DDL_getStructSubStart(ddl);
+    REQUIRE(DDL_getStructPropCount(struc1) == 1);
+    DDL_BOOL_T propVal;
+    REQUIRE(DDL_getPropBoolValue(DDL_getStructPropStart(struc1), &propVal));
+    REQUIRE(propVal);
     DDL_free(ddl);
 }

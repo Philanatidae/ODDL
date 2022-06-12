@@ -778,6 +778,224 @@ int DDL_parseDecimalLiteral(char const* ddlMem, int ddlLen,
         }
 
         prevC = c;
+        cursor++;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }
+
+    return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
+}
+static int8_t DDL_hexLookup[] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // 0-9
+    -1, -1, -1, -1, -1, -1, -1, // :-@
+    10, 11, 12, 13, 14, 15, 16, // A-F
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // G-`
+    10, 11, 12, 13, 14, 15, 16 // a-f
+};
+int DDL_parseHexLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    int const start = cursor;
+    uint64_t num = 0;
+    char prevC = '\0';
+    while(1) {
+        DDL_EOF_CHECK();
+
+        char const c = ddlMem[cursor];
+        switch(c) {
+        case '_':
+            if(cursor == start
+                || prevC == '_') {
+                DDL_reportError(DDLErrorUnexpectedToken);
+                return -1;
+            }
+            break;
+        default:
+            if(c >= '0' && c <= 'f') {
+                int8_t val = DDL_hexLookup[c - '0'];
+                num *= 16;
+                num += c - '0';
+            } else {
+                if(cursor == start) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+            }
+            break;
+        }
+
+        prevC = c;
+        cursor++;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }
+
+    return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
+}
+int DDL_parseOctalLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    int const start = cursor;
+    uint64_t num = 0;
+    char prevC = '\0';
+    while(1) {
+        DDL_EOF_CHECK();
+
+        char const c = ddlMem[cursor];
+        switch(c) {
+        case '_':
+            if(cursor == start
+                || prevC == '_') {
+                DDL_reportError(DDLErrorUnexpectedToken);
+                return -1;
+            }
+            break;
+        default:
+            if(c >= '0' && c <= '7') {
+                num *= 8;
+                num += c - '0';
+            } else {
+                if(cursor == start) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+            }
+            break;
+        }
+
+        prevC = c;
+        cursor++;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }
+
+    return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
+}
+int DDL_parseBinaryLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    int const start = cursor;
+    uint64_t num = 0;
+    char prevC = '\0';
+    while(1) {
+        DDL_EOF_CHECK();
+
+        char const c = ddlMem[cursor];
+        switch(c) {
+        case '_':
+            if(cursor == start
+                || prevC == '_') {
+                DDL_reportError(DDLErrorUnexpectedToken);
+                return -1;
+            }
+            break;
+        default:
+            if(c == '0' || c == '1') {
+                num <<= 1;
+                num += c - '0';
+            } else {
+                if(cursor == start) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+            }
+            break;
+        }
+
+        prevC = c;
+        cursor++;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }
+
+    return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
+}
+int DDL_parseCharLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '\''));
+    uint64_t num = 0;
+    char prevC = '\0';
+    while(1) {
+        DDL_EOF_CHECK();
+
+        char const c = ddlMem[cursor];
+        if(prevC == '\\') {
+            num *= 255;
+            switch(c) {
+            case '"':
+            case '\'':
+            case '?':
+            case '\\':
+                num += c;
+                break;
+            case 'a':
+                num += '\a';
+                break;
+            case 'b':
+                num += '\b';
+                break;
+            case 'f':
+                num += '\f';
+                break;
+            case 'n':
+                num += '\n';
+                break;
+            case 'r':
+                num += '\r';
+                break;
+            case 't':
+                num += '\t';
+                break;
+            case 'v':
+                num += '\v';
+                break;
+            case 'x':
+                // @todo look-ahead
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, 'x'));
+                uint64_t spec;
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseHexLiteral(&ddlMem[cursor + 1], 2, 0, DDL_NULL, &spec))
+                num += spec;
+                break;
+            default:
+                DDL_reportError(DDLErrorUnexpectedToken);
+                return -1;
+            }
+        } else {
+            switch(c) {
+            case '\\':
+                // Escape character, do nothing until resolution next character
+                break;
+            case '\'':
+                // End of character list
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseToken(ddlMem, ddlLen, cursor, parserState, '\''));
+                goto ddl_break;
+            default:
+                num *= 255;
+                num += c;
+                break;
+            }
+        }
+
+        prevC = c;
+        cursor++;
+
+    ddl_continue:
+        continue;
+    ddl_break:
+        break;
     }
 
     if(outVal != DDL_NULL) {
@@ -800,12 +1018,42 @@ int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
 
     uint64_t num;
 
-    // @todo Hex
-    // @todo Octal
-    // @todo Binary
-    // @todo Char
+    DDL_BOOL_T parsed = DDL_FALSE;
+    if(ddlMem[cursor] == '\'') {
+        DDL_PARSE_ERROR_CHECK(cursor = DDL_parseCharLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+        parsed = DDL_TRUE;
+    } else {
+        if(cursor + 2 < ddlLen
+            && ddlMem[cursor] == '0') {
+            switch(ddlMem[cursor + 1]) {
+            case 'x':
+            case 'X':
+                cursor += 2;
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseHexLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+                parsed = DDL_TRUE;
+                break;
+            case 'o':
+            case 'O':
+                cursor += 2;
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseOctalLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+                parsed = DDL_TRUE;
+                break;
+            case 'b':
+            case 'B':
+                cursor += 2;
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_parseBinaryLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+                parsed = DDL_TRUE;
+                break;
+            default:
+                break;
+            }
+        }
+    }
 
-    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseDecimalLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    if(!parsed) {
+        DDL_PARSE_ERROR_CHECK(cursor = DDL_parseDecimalLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    }
+
     num *= sign;
 
     if(outVal != DDL_NULL) {
@@ -813,6 +1061,175 @@ int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
     }    
 
     return cursor;
+}
+
+int DDL_parseBool(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    DDL_BOOL_T* outVal) {
+    DDL_EOF_CHECK();
+    DDL_BOOL_T b;
+    if(ddlMem[cursor] == '0'
+        || ddlMem[cursor] == '1') {
+        b = ddlMem[cursor] == '1' ? DDL_TRUE : DDL_FALSE;
+        cursor++;
+    } else {
+        if((cursor + 4) >= ddlLen) {
+            DDL_reportError(DDLErrorUnexpectedEndOfFile);
+            return -1;
+        } else {
+            if(cursor + 5 < ddlLen
+                && strcmp(&ddlMem[cursor], "false") == 0) {
+                b = DDL_FALSE;
+                cursor += 5;
+            } else if(strcmp(&ddlMem[cursor], "true") == 0) {
+                b = DDL_TRUE;
+                cursor += 4;
+            } else {
+                DDL_reportError(DDLErrorUnexpectedToken);
+                return -1;
+            }
+        }
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = b;
+    }
+
+    return DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE);
+}
+
+int DDL_parseInt8(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    int8_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t unum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
+    int64_t num;
+    if(num < -128 || num > 127) {
+        DDL_reportError(DDLErrorOutOfRange);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (int8_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseInt16(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    int16_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t unum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
+    int64_t num;
+    if(num < -32768 || num > 32767) {
+        DDL_reportError(DDLErrorOutOfRange);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (int16_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseInt32(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    int32_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t unum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
+    int64_t num;
+    if(num < -2147483648 || num > 2147483647) {
+        DDL_reportError(DDLErrorOutOfRange);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (int32_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseInt64(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    int64_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t unum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
+    int64_t num;
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }
+
+    return cursor;
+}
+int DDL_parseUInt8(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint8_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t num;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    if((num >> 8) > 0) {
+        DDL_reportError(DDLErrorOutOfMemory);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (uint8_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseUInt16(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint16_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t num;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    if((num >> 16) > 0) {
+        DDL_reportError(DDLErrorOutOfMemory);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (uint16_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseUInt32(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint32_t* outVal) {
+    DDL_EOF_CHECK();
+    uint64_t num;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
+    if((num >> 32) > 0) {
+        DDL_reportError(DDLErrorOutOfMemory);
+        return -1;
+    }
+
+    if(outVal != DDL_NULL) {
+        *outVal = (uint32_t)num;
+    }
+
+    return cursor;
+}
+int DDL_parseUInt64(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    uint64_t* outVal) {
+    return DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, outVal);
 }
 
 int DDL_parseInnerProps(char const* ddlMem, int ddlLen,
@@ -872,6 +1289,7 @@ int DDL_parseInnerProps(char const* ddlMem, int ddlLen,
         if(ddlMem[cursor] == ',' || ddlMem[cursor] == ')') {
             // Boolean true
             prop->value = strdup("1");
+            prop->size = 1;
             prop->storageType = DDLPropStorageTypeRawString;
             if(prop->value == DDL_NULL) {
                 DDL_reportError(DDLErrorOutOfMemory);
@@ -1135,7 +1553,7 @@ DDL_BOOL_T DDL_getPropBoolValue(struct DDLProp* prop, DDL_BOOL_T* outVal) {
         return DDL_FALSE;
     }
 
-    //return DDL_parseStringAsBool((char*)prop->value, prop->size, outVal);
+    return DDL_parseBool((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropInt8Value(struct DDLProp* prop, int8_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1143,7 +1561,7 @@ DDL_BOOL_T DDL_getPropInt8Value(struct DDLProp* prop, int8_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsInt8((char*)prop->value, prop->size, outVal);
+    return DDL_parseInt8((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropInt16Value(struct DDLProp* prop, int16_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1151,7 +1569,7 @@ DDL_BOOL_T DDL_getPropInt16Value(struct DDLProp* prop, int16_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsInt16((char*)prop->value, prop->size, outVal);
+    return DDL_parseInt16((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropInt32Value(struct DDLProp* prop, int32_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1159,7 +1577,7 @@ DDL_BOOL_T DDL_getPropInt32Value(struct DDLProp* prop, int32_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsInt32((char*)prop->value, prop->size, outVal);
+    return DDL_parseInt32((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropInt64Value(struct DDLProp* prop, int64_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1167,7 +1585,7 @@ DDL_BOOL_T DDL_getPropInt64Value(struct DDLProp* prop, int64_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsInt64((char*)prop->value, prop->size, outVal);
+    return DDL_parseInt64((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropUInt8Value(struct DDLProp* prop, uint8_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1175,7 +1593,7 @@ DDL_BOOL_T DDL_getPropUInt8Value(struct DDLProp* prop, uint8_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsUInt8((char*)prop->value, prop->size, outVal);
+    return DDL_parseUInt8((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropUInt16Value(struct DDLProp* prop, uint16_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1183,7 +1601,7 @@ DDL_BOOL_T DDL_getPropUInt16Value(struct DDLProp* prop, uint16_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsUInt16((char*)prop->value, prop->size, outVal);
+    return DDL_parseUInt16((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropUInt32Value(struct DDLProp* prop, uint32_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1191,7 +1609,7 @@ DDL_BOOL_T DDL_getPropUInt32Value(struct DDLProp* prop, uint32_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsUInt32((char*)prop->value, prop->size, outVal);
+    return DDL_parseUInt32((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropUInt64Value(struct DDLProp* prop, uint64_t* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
@@ -1199,7 +1617,7 @@ DDL_BOOL_T DDL_getPropUInt64Value(struct DDLProp* prop, uint64_t* outVal) {
         return DDL_FALSE;
     }
 
-    // return DDL_parseStringAsUInt64((char*)prop->value, prop->size, outVal);
+    return DDL_parseUInt64((char const*)prop->value, prop->size, 0, DDL_NULL, outVal);
 }
 DDL_BOOL_T DDL_getPropHalfValue(struct DDLProp* prop, DDL_HALF_T* outVal) {
     if(prop->storageType != DDLPropStorageTypeRawString) {
