@@ -12,13 +12,14 @@ TEST_CASE("Test case", "[tests]") {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        ddlBuf = (char*)malloc(length);
+        ddlBuf = (char*)malloc(length + 1);
         if(ddlBuf) {
             fread(ddlBuf, 1, length, f);
         }
         fclose(f);
     }
     REQUIRE(ddlBuf != 0);
+    ddlBuf[length] = '\0';
 
     struct DDL* ddl = DDL_parseFromString(ddlBuf);
     REQUIRE(ddl != DDL_NULL);
