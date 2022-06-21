@@ -1089,6 +1089,239 @@ int DDL_parseIntegerLiteral(char const* ddlMem, int ddlLen,
     return cursor;
 }
 
+int DDL_parseFloatLiteral(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    int parsingBytes,
+    double* outVal) {
+    if(parsingBytes != 2
+        && parsingBytes != 4
+        && parsingBytes != 8) {
+        DDL_reportError(DDLErrorUnknown);
+        return -1;
+    }
+
+    DDL_EOF_CHECK();
+    int const start = cursor;
+    int sign = ddlMem[cursor] == '-' ? -1 : 1;
+    if(ddlMem[cursor] == '-'
+        || ddlMem[cursor] == '+') {
+        cursor++;
+    } 
+
+    double num = 0;
+
+    DDL_BOOL_T parsed = DDL_FALSE;
+    if(cursor + 2 < ddlLen
+        && ddlMem[cursor] == '0') {
+        uint64_t nbits = 0;
+        switch(ddlMem[cursor + 1]) {
+        case 'x':
+        case 'X':
+            cursor += 2;
+            DDL_PARSE_ERROR_CHECK(cursor = DDL_parseHexLiteral(ddlMem, ddlLen, cursor, parserState, &nbits));
+            if((nbits >> (parsingBytes * 8)) > 0) {
+                DDL_reportError(DDLErrorOutOfRange);
+                return -1;
+            }
+            parsed = DDL_TRUE;
+            break;
+        case 'o':
+        case 'O':
+            cursor += 2;
+            DDL_PARSE_ERROR_CHECK(cursor = DDL_parseOctalLiteral(ddlMem, ddlLen, cursor, parserState, &nbits));
+            num = *(double*)&nbits;
+            parsed = DDL_TRUE;
+            break;
+        case 'b':
+        case 'B':
+            cursor += 2;
+            DDL_PARSE_ERROR_CHECK(cursor = DDL_parseBinaryLiteral(ddlMem, ddlLen, cursor, parserState, &nbits));
+            num = *(double*)&nbits;
+            parsed = DDL_TRUE;
+            break;
+        default:
+            break;
+        }
+        if(parsed) {
+            switch(parsingBytes) {
+            case 2:
+                {
+                    uint32_t fbits = DDL_convertHalfBitsToFloatBits((uint16_t)nbits);
+                    num = (double)*(float*)&fbits;
+                }
+                break;
+            case 4:
+                num = (double)*(float*)&nbits;
+                break;
+            case 8:
+                num = *(double*)&nbits;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    if(!parsed) {
+        double mul = 1;
+        double expSign = 1;
+        double exp = 0;
+        DDL_BOOL_T seenDecimal = DDL_FALSE;
+        DDL_BOOL_T seenExponent = DDL_FALSE;
+        DDL_BOOL_T expSpecified = DDL_FALSE;
+
+        char prevC = '\0';
+        while(1) {
+            DDL_EOF_CHECK();
+
+            char const c = ddlMem[cursor];
+            switch(c) {
+            case '_':
+                if(cursor == start
+                    || prevC == '_'
+                    || prevC == '.'
+                    || prevC == 'e'
+                    || prevC == 'E') {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+                break;
+            case '.':
+                if(seenDecimal
+                    || seenExponent) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+                seenDecimal = DDL_TRUE;
+                break;
+            case 'e':
+            case 'E':
+                if(seenExponent
+                    || cursor == start) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+                seenExponent = DDL_TRUE;
+                break;
+            case '-':
+            case '+':
+                if(!seenExponent
+                    || (prevC != 'e' && prevC != 'E')) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+                expSign = c == '-' ? -1 : 1;
+                break;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                if(seenExponent) {
+                    expSpecified = DDL_TRUE;
+                    exp *= 10;
+                    exp += c - '0';
+                } else {
+                    if(seenDecimal) {
+                        mul /= 10;
+                    }
+                    num *= 10;
+                    num += c - '0';
+                }
+                break;    
+            default:
+                if(seenExponent && !expSpecified) {
+                    DDL_reportError(DDLErrorUnexpectedToken);
+                    return -1;
+                }
+                DDL_PARSE_ERROR_CHECK(cursor = DDL_skipWhitespace(ddlMem, ddlLen, cursor, parserState, DDL_FALSE));
+                goto ddl_break;
+            }
+
+            prevC = c;
+            cursor++;
+        
+        ddl_continue:
+            continue;
+        ddl_break:
+            break;
+        }
+
+        num *= mul;
+        exp *= expSign;
+        num *= DDL_DPOW(10, exp);
+    }
+
+    num *= sign;
+
+    if(outVal != DDL_NULL) {
+        *outVal = num;
+    }    
+
+    return cursor;
+}
+
+int DDL_parseHalf(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    void* outVal) {
+    DDL_EOF_CHECK();
+    double dnum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseFloatLiteral(ddlMem, ddlLen, cursor, parserState, sizeof(DDL_HALF_T), &dnum));
+
+    float fnum = (float)dnum;
+    if(sizeof(DDL_HALF_T) == sizeof(float)) {
+        if(outVal != DDL_NULL) {
+            *(float*)outVal = fnum;
+        }
+    } else {
+        if(outVal != DDL_NULL) {
+            uint32_t fbits = *(uint32_t*)&fnum;
+            uint16_t hbits = DDL_convertFloatBitsToHalfBits(fbits);
+            *(DDL_HALF_T*)outVal = *(DDL_HALF_T*)&hbits;
+        }
+    }
+
+    return cursor;
+}
+int DDL_parseFloat(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    void* outVal) {
+    DDL_EOF_CHECK();
+    double dnum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseFloatLiteral(ddlMem, ddlLen, cursor, parserState, sizeof(float), &dnum));
+
+    // @todo Check if double can be converted into float?
+    float num = dnum;
+    
+    if(outVal != DDL_NULL) {
+        *(float*)outVal = num;
+    }
+
+    return cursor;
+}
+int DDL_parseDouble(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    void* outVal) {
+    DDL_EOF_CHECK();
+    double dnum;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseFloatLiteral(ddlMem, ddlLen, cursor, parserState, sizeof(double), &dnum));
+    
+    if(outVal != DDL_NULL) {
+        *(double*)outVal = dnum;
+    }
+
+    return cursor;
+}
+
 int DDL_parseBool(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
@@ -1129,7 +1362,6 @@ int DDL_parseInt8(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t unum;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
     int64_t num = (uint64_t)unum;
@@ -1148,7 +1380,6 @@ int DDL_parseInt16(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t unum;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
     int64_t num = (uint64_t)unum;
@@ -1167,7 +1398,6 @@ int DDL_parseInt32(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t unum;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
     int64_t num = (uint64_t)unum;
@@ -1186,7 +1416,6 @@ int DDL_parseInt64(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t unum;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &unum));
     int64_t num = (uint64_t)unum;
@@ -1201,7 +1430,6 @@ int DDL_parseUInt8(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t num;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
     if((num >> 8) > 0) {
@@ -1219,7 +1447,6 @@ int DDL_parseUInt16(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t num;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
     if((num >> 16) > 0) {
@@ -1237,7 +1464,6 @@ int DDL_parseUInt32(char const* ddlMem, int ddlLen,
     int cursor,
     struct DDLParserState* parserState,
     void* outVal) {
-    DDL_EOF_CHECK();
     uint64_t num;
     DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, &num));
     if((num >> 32) > 0) {
@@ -1258,8 +1484,29 @@ int DDL_parseUInt64(char const* ddlMem, int ddlLen,
     return DDL_parseIntegerLiteral(ddlMem, ddlLen, cursor, parserState, (uint64_t*)outVal);
 }
 
+int DDL_parseType(char const* ddlMem, int ddlLen,
+    int cursor,
+    struct DDLParserState* parserState,
+    void* outVal) {
+    char const* identifier;
+    int identifierLen;
+    DDL_PARSE_ERROR_CHECK(cursor = DDL_parseIdentifier(ddlMem, ddlLen, cursor, parserState, &identifier, &identifierLen));
+
+    enum DDLDataType dtype = DDL_convertIdentifierToDataType(identifier, identifierLen);
+    if(dtype == DDLDataTypeInvalid) {
+        DDL_reportError(DDLErrorUnexpectedToken);
+        return -1;
+    } 
+
+    if(outVal != DDL_NULL) {
+        *(enum DDLDataType*)outVal = dtype;
+    }
+
+    return cursor;
+}
+
 static int (*DDL_dataTypeParsers[])(char const*, int, int, struct DDLParserState*, void*) = {
-    DDL_NULL,
+    DDL_NULL, // Invalid
     &DDL_parseBool,
     &DDL_parseInt8,
     &DDL_parseInt16,
@@ -1269,14 +1516,16 @@ static int (*DDL_dataTypeParsers[])(char const*, int, int, struct DDLParserState
     &DDL_parseUInt16,
     &DDL_parseUInt32,
     &DDL_parseUInt64,
-    DDL_NULL,
-    DDL_NULL,
-    DDL_NULL,
-    DDL_NULL,
-    DDL_NULL
+    &DDL_parseHalf,
+    &DDL_parseFloat,
+    &DDL_parseDouble,
+    DDL_NULL, // String
+    DDL_NULL, // Ref
+    &DDL_parseType, // Type
+    DDL_NULL // Base64
 };
 static int DDL_dataTypeSizes[] = {
-    -1,
+    -1, // Invalid
     sizeof(DDL_BOOL_T),
     sizeof(int8_t),
     sizeof(int16_t),
@@ -1289,10 +1538,10 @@ static int DDL_dataTypeSizes[] = {
     sizeof(DDL_HALF_T),
     sizeof(float),
     sizeof(double),
-    -1,
-    -1,
+    -1, // String
+    -1, // Ref
     sizeof(enum DDLDataType),
-    -1
+    -1 // Base64
 };
 
 int DDL_parseInnerProps(char const* ddlMem, int ddlLen,
