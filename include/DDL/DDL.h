@@ -524,74 +524,74 @@ enum DDLDataType DDL_convertIdentifierToDataType(char const* identifier, int len
     if(len < 0) {
         len = strlen(identifier);
     }
-    if(strncmp(identifier, "bool", len) == 0
-        || strncmp(identifier, "b", len) == 0) {
+    if((strncmp(identifier, "bool", len) == 0 && len == 4)
+        || (strncmp(identifier, "b", len) == 0 && len == 1)) {
         return DDLDataTypeBool;
     }
-    if(strncmp(identifier, "int8", len) == 0
-        || strncmp(identifier, "i8", len) == 0) {
+    if((strncmp(identifier, "int8", len) == 0 && len == 4)
+        || (strncmp(identifier, "i8", len) == 0 && len == 2)) {
         return DDLDataTypeInt8;
     }
-    if(strncmp(identifier, "int16", len) == 0
-        || strncmp(identifier, "i16", len) == 0) {
+    if((strncmp(identifier, "int16", len) == 0 && len == 4)
+        || (strncmp(identifier, "i16", len) == 0 && len == 3)) {
         return DDLDataTypeInt16;
     }
-    if(strncmp(identifier, "int32", len) == 0
-        || strncmp(identifier, "i32", len) == 0) {
+    if((strncmp(identifier, "int32", len) == 0 && len == 4)
+        || (strncmp(identifier, "i32", len) == 0 && len == 3)) {
         return DDLDataTypeInt32;
     }
-    if(strncmp(identifier, "int64", len) == 0
-        || strncmp(identifier, "i64", len) == 0) {
+    if((strncmp(identifier, "int64", len) == 0 && len == 4)
+        || (strncmp(identifier, "i64", len) == 0 && len == 3)) {
         return DDLDataTypeInt64;
     }
-    if(strncmp(identifier, "uint8", len) == 0
-        || strncmp(identifier, "u8", len) == 0) {
+    if((strncmp(identifier, "uint8", len) == 0 && len == 4)
+        || (strncmp(identifier, "u8", len) == 0 && len == 2)) {
         return DDLDataTypeUInt8;
     }
-    if(strncmp(identifier, "uint16", len) == 0
-        || strncmp(identifier, "u16", len) == 0) {
+    if((strncmp(identifier, "uint16", len) == 0 && len == 4)
+        || (strncmp(identifier, "u16", len) == 0 && len == 3)) {
         return DDLDataTypeUInt16;
     }
-    if(strncmp(identifier, "uint32", len) == 0
-        || strncmp(identifier, "u32", len) == 0) {
+    if((strncmp(identifier, "uint32", len) == 0 && len == 4)
+        || (strncmp(identifier, "u32", len) == 0 && len == 3)) {
         return DDLDataTypeUInt32;
     }
-    if(strncmp(identifier, "uint64", len) == 0
-        || strncmp(identifier, "u64", len) == 0) {
+    if((strncmp(identifier, "uint64", len) == 0 && len == 4)
+        || (strncmp(identifier, "u64", len) == 0 && len == 3)) {
         return DDLDataTypeUInt64;
     }
-    if(strncmp(identifier, "half", len) == 0
-        || strncmp(identifier, "float16", len) == 0
-        || strncmp(identifier, "h", len) == 0
-        || strncmp(identifier, "f16", len) == 0) {
+    if((strncmp(identifier, "half", len) == 0 && len == 4)
+        || (strncmp(identifier, "float16", len) == 0 && len == 7)
+        || (strncmp(identifier, "h", len) == 0 && len == 1)
+        || (strncmp(identifier, "f16", len) == 0 && len == 3)) {
         return DDLDataTypeHalf;
     }
-    if(strncmp(identifier, "float", len) == 0
-        || strncmp(identifier, "float32", len) == 0
-        || strncmp(identifier, "f", len) == 0
-        || strncmp(identifier, "f32", len) == 0) {
+    if((strncmp(identifier, "float", len) == 0 && len == 5)
+        || (strncmp(identifier, "float32", len) == 0 && len == 7)
+        || (strncmp(identifier, "f", len) == 0 && len == 1)
+        || (strncmp(identifier, "f32", len) == 0 && len == 3)) {
         return DDLDataTypeFloat;
     }
-    if(strncmp(identifier, "double", len) == 0
-        || strncmp(identifier, "float64", len) == 0
-        || strncmp(identifier, "d", len) == 0
-        || strncmp(identifier, "f64", len) == 0) {
+    if((strncmp(identifier, "double", len) == 0 && len == 6)
+        || (strncmp(identifier, "float64", len) == 0 && len == 7)
+        || (strncmp(identifier, "d", len) == 0 && len == 1)
+        || (strncmp(identifier, "f64", len) == 0 && len == 3)) {
         return DDLDataTypeDouble;
     }
-    if(strncmp(identifier, "string", len) == 0
-        || strncmp(identifier, "s", len) == 0) {
+    if((strncmp(identifier, "string", len) == 0 && len == 6)
+        || (strncmp(identifier, "s", len) == 0 && len == 1)) {
         return DDLDataTypeString;
     }
-    if(strncmp(identifier, "ref", len) == 0
-        || strncmp(identifier, "r", len) == 0) {
+    if((strncmp(identifier, "ref", len) == 0 && len == 3)
+        || (strncmp(identifier, "r", len) == 0 && len == 1)) {
         return DDLDataTypeRef;
     }
-    if(strncmp(identifier, "type", len) == 0
-        || strncmp(identifier, "t", len) == 0) {
+    if((strncmp(identifier, "type", len) == 0 && len == 4)
+        || (strncmp(identifier, "t", len) == 0 && len == 1)) {
         return DDLDataTypeType;
     }
-    if(strncmp(identifier, "base64", len) == 0
-        || strncmp(identifier, "z", len) == 0) {
+    if((strncmp(identifier, "base64", len) == 0 && len == 6)
+        || (strncmp(identifier, "z", len) == 0 && len == 1)) {
         return DDLDataTypeBase64;
     }
     return DDLDataTypeInvalid;
