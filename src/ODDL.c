@@ -1,0 +1,2 @@
+#define ODDL_IMPLEMENTATION
+#include <ODDL/ODDL.h>

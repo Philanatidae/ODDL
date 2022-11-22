@@ -1,6 +1,6 @@
 # Define test executable
-add_executable(DDL-tests)
-target_link_libraries(DDL-tests PRIVATE
+add_executable(ODDL-tests)
+target_link_libraries(ODDL-tests PRIVATE
     Catch2::Catch2
-    DDL)
+    ODDL)
 add_subdirectory(src)

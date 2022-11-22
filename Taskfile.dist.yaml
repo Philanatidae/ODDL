@@ -1,0 +1,15 @@
+version: '3'
+
+tasks:
+  default:
+    - task: build
+
+  build:
+    cmds:
+      - cmake --build ./build
+
+  test:
+    deps: [build]
+    cmds:
+      - ./build/tests/ODDL-tests
+

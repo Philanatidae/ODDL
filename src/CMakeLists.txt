@@ -1,3 +1,3 @@
-target_sources(DDL PUBLIC
-    DDL.c
+target_sources(ODDL PUBLIC
+    ODDL.c
 )

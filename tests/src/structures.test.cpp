@@ -1,13 +1,15 @@
 #include <catch2/catch.hpp>
 
-#include <DDL/DDL.h>
+#include <ODDL/ODDL.h>
 
 #include <stdio.h>
 
 TEST_CASE("Test case", "[tests]") {
     char* ddlBuf = 0;
     long length;
-    FILE* f = fopen("/Users/philiprader/Developer/Git/DDL/tests/resources/Structs.ddl", "rb"); 
+    char const* ddlFile = "./tests/resources/Structs.ddl";
+    FILE* f = fopen(ddlFile, "rb");
+    REQUIRE(f != 0);
     if(f) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
@@ -21,12 +23,12 @@ TEST_CASE("Test case", "[tests]") {
     REQUIRE(ddlBuf != 0);
     ddlBuf[length] = '\0';
 
-    struct DDL* ddl = DDL_parseFromString(ddlBuf);
-    REQUIRE(ddl != DDL_NULL);
-    struct DDL* struc1 = DDL_getStructSubStart(ddl);
-    REQUIRE(DDL_getStructPropCount(struc1) == 1);
-    DDL_BOOL_T propVal;
-    REQUIRE(DDL_getPropBoolValue(DDL_getStructPropStart(struc1), &propVal));
+    struct ODDL* ddl = ODDL_parseFromString(ddlBuf);
+    REQUIRE(ddl != ODDL_NULL);
+    struct ODDL* struc1 = ODDL_getStructSubStart(ddl);
+    REQUIRE(ODDL_getStructPropCount(struc1) == 1);
+    ODDL_BOOL_T propVal;
+    REQUIRE(ODDL_getPropBoolValue(ODDL_getStructPropStart(struc1), &propVal));
     REQUIRE(propVal);
-    DDL_free(ddl);
+    ODDL_free(ddl);
 }

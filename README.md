@@ -1,5 +1,5 @@
-# DDL
-DDL is an open-source C parser/writer for the [Open Data Description Language](https://openddl.org/) (OpenDDL) file format.
+# ODDL
+ODDL is an open-source C parser/writer for the [Open Data Description Language](https://openddl.org/) (OpenDDL) file format.
 
 This library is currently a work-in-progress.
 
