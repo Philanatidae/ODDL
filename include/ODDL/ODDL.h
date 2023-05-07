@@ -482,43 +482,80 @@ ODDL_BOOL_T ODDL_isIdentifierDataType(char const* identifier, int len) {
     if(len < 0) {
         len = strlen(identifier);
     }
-    return strncmp(identifier, "bool", len) == 0
-        || strncmp(identifier, "b", len) == 0
-        || strncmp(identifier, "int8", len) == 0
-        || strncmp(identifier, "i8", len) == 0
-        || strncmp(identifier, "int16", len) == 0
-        || strncmp(identifier, "i16", len) == 0
-        || strncmp(identifier, "int32", len) == 0
-        || strncmp(identifier, "i32", len) == 0
-        || strncmp(identifier, "int64", len) == 0
-        || strncmp(identifier, "uint8", len) == 0
-        || strncmp(identifier, "u8", len) == 0
-        || strncmp(identifier, "uint16", len) == 0
-        || strncmp(identifier, "u16", len) == 0
-        || strncmp(identifier, "uint32", len) == 0
-        || strncmp(identifier, "u32", len) == 0
-        || strncmp(identifier, "uint64", len) == 0
-        || strncmp(identifier, "u64", len) == 0
-        || strncmp(identifier, "half", len) == 0
-        || strncmp(identifier, "float16", len) == 0
-        || strncmp(identifier, "h", len) == 0
-        || strncmp(identifier, "f16", len) == 0
-        || strncmp(identifier, "float", len) == 0
-        || strncmp(identifier, "float32", len) == 0
-        || strncmp(identifier, "f", len) == 0
-        || strncmp(identifier, "f32", len) == 0
-        || strncmp(identifier, "double", len) == 0
-        || strncmp(identifier, "float64", len) == 0
-        || strncmp(identifier, "d", len) == 0
-        || strncmp(identifier, "f64", len) == 0
-        || strncmp(identifier, "string", len) == 0
-        || strncmp(identifier, "s", len) == 0
-        || strncmp(identifier, "ref", len) == 0
-        || strncmp(identifier, "r", len) == 0
-        || strncmp(identifier, "type", len) == 0
-        || strncmp(identifier, "t", len) == 0
-        || strncmp(identifier, "base64", len) == 0
-        || strncmp(identifier, "z", len) == 0;
+    return (strncmp(identifier, "bool", len) == 0
+            && len == 4)
+        || (strncmp(identifier, "b", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "int8", len) == 0
+            && len == 4)
+        || (strncmp(identifier, "i8", len) == 0
+            && len == 2)
+        || (strncmp(identifier, "int16", len) == 0
+            && len == 5)
+        || (strncmp(identifier, "i16", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "int32", len) == 0
+            && len == 5)
+        || (strncmp(identifier, "i32", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "int64", len) == 0
+            && len == 5)
+        || (strncmp(identifier, "uint8", len) == 0
+            && len == 5)
+        || (strncmp(identifier, "u8", len) == 0
+            && len == 2)
+        || (strncmp(identifier, "uint16", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "u16", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "uint32", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "u32", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "uint64", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "u64", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "half", len) == 0
+            && len == 4)
+        || (strncmp(identifier, "float16", len) == 0
+            && len == 7)
+        || (strncmp(identifier, "h", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "f16", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "float", len) == 0
+            && len == 5)
+        || (strncmp(identifier, "float32", len) == 0
+            && len == 7)
+        || (strncmp(identifier, "f", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "f32", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "double", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "float64", len) == 0
+            && len == 7)
+        || (strncmp(identifier, "d", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "f64", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "string", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "s", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "ref", len) == 0
+            && len == 3)
+        || (strncmp(identifier, "r", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "type", len) == 0
+            && len == 4)
+        || (strncmp(identifier, "t", len) == 0
+            && len == 1)
+        || (strncmp(identifier, "base64", len) == 0
+            && len == 6)
+        || (strncmp(identifier, "z", len) == 0
+            && len == 1);
 }
 enum ODDLDataType ODDL_convertIdentifierToDataType(char const* identifier, int len) {
     if(len < 0) {
